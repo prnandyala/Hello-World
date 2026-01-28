@@ -25,6 +25,7 @@ jobs:
 
       # 1) Convert Casbin -> JSON (input for OPA)
       - name: Convert Casbin policy to JSON
+        working-directory: ${{ github.workspace }}
         run: |
           python scripts/casbin_to_json.py \
             --policy-file casbin/policy.csv \
