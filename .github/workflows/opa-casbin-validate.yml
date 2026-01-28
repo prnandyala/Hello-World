@@ -23,10 +23,22 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Optional debug step to confirm files & layout (remove after you confirm it works)
+      - name: Debug repo structure
+        run: |
+          echo "Workspace: $GITHUB_WORKSPACE"
+          pwd
+          ls -la
+          echo "Looking for scripts and casbin files..."
+          ls -la scripts || true
+          ls -la casbin || true
+
       # 1) Convert Casbin -> JSON (input for OPA)
       - name: Convert Casbin policy to JSON
         working-directory: ${{ github.workspace }}
         run: |
+          # ensure output dir exists (casbin_to_json.py also creates dirs, but this is safe)
+          mkdir -p build
           python scripts/casbin_to_json.py \
             --policy-file casbin/policy.csv \
             --out build/casbin_policy.json
@@ -34,12 +46,28 @@ jobs:
       # 2) Evaluate with OPA; fail if any deny messages returned
       - name: OPA evaluate
         run: |
+          echo "Evaluating OPA policy against build/casbin_policy.json..."
+          echo "OPA version: $(opa version || true)"
+
+          # Show the pretty evaluation (useful for logs)
           opa eval \
             --format=pretty \
             --data opa/policy.rego \
             --input build/casbin_policy.json \
-            "data.casbin.deny"
+            "data.casbin.deny" || true
 
-          # Fail the job if deny is non-empty
-          test "$(opa eval --format=raw --data opa/policy.rego --input build/casbin_policy.json 'count(data.casbin.deny)')" -eq 0
+          # Robust numeric count check. If count > 0, print denies and exit 1.
+          count=$(opa eval --format=raw --data opa/policy.rego --input build/casbin_policy.json 'count(data.casbin.deny)' 2>/dev/null || echo "ERR")
+          if [ "$count" = "ERR" ]; then
+            echo "ERROR: opa eval failed when counting denies. See logs above."
+            exit 1
+          fi
 
+          echo "deny count: $count"
+          if [ "$count" -ne 0 ]; then
+            echo "Policy validation failed — printing deny messages:"
+            opa eval --format=pretty --data opa/policy.rego --input build/casbin_policy.json "data.casbin.deny"
+            exit 1
+          fi
+
+          echo "No denies found. OPA check passed."
