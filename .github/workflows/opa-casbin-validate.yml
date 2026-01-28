@@ -82,7 +82,13 @@ jobs:
 
           echo "No denies found. OPA check passed."
 
+      - name: Verify JSON exists
+        run: |
+          ls - la demo/build || true
+          cat demo/build/casbin_policy.json || true
+
       - name: Upload Casbin JSON artifact
+        if: always()   # 👈 VERY IMPORTANT (uploads even if OPA fails)
         uses: actions/upload-artifact@v4
         with:
           name: casbin-policy-json
