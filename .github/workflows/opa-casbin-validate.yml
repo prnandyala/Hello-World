@@ -1,1 +1,44 @@
+name: Validate Casbin policies with OPA
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 1) Convert Casbin -> JSON (input for OPA)
+      - name: Convert Casbin policy to JSON
+        run: |
+          python scripts/casbin_to_json.py \
+            --policy-file casbin/policy.csv \
+            --out build/casbin_policy.json
+
+      # 2) Evaluate with OPA; fail if any deny messages returned
+      - name: OPA evaluate
+        run: |
+          opa eval \
+            --format=pretty \
+            --data opa/policy.rego \
+            --input build/casbin_policy.json \
+            "data.casbin.deny"
+
+          # Fail the job if deny is non-empty
+          test "$(opa eval --format=raw --data opa/policy.rego --input build/casbin_policy.json 'count(data.casbin.deny)')" -eq 0
 
