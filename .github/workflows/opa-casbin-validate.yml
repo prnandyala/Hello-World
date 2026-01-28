@@ -3,7 +3,7 @@ name: Validate Casbin policies with OPA
 on:
   pull_request:
   push:
-    branches: ["main"]
+    branches: ["test"]
 
 jobs:
   validate:
