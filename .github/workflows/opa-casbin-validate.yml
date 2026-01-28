@@ -3,15 +3,20 @@ name: Validate Casbin policies with OPA
 on:
   pull_request:
   push:
-    branches: ["main"]
+    branches: ["test"]
 
 jobs:
   validate:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Show repo tree (debug)
+        run: |
+          echo "Workspace: $GITHUB_WORKSPACE"
+          pwd
+          find . -maxdepth 5 -type f -print
 
       - name: Setup OPA
         uses: open-policy-agent/setup-opa@v2
@@ -23,22 +28,56 @@ jobs:
         with:
           python-version: "3.11"
 
-      # 1) Convert Casbin -> JSON (input for OPA)
+      # Run conversion from inside demo so short relative paths work:
       - name: Convert Casbin policy to JSON
+        working-directory: demo
         run: |
+          echo "Working dir: $(pwd)"
+          # Defensive check for both script and policy file
+          if [ ! -f scripts/casbin_to_json.py ]; then
+            echo "ERROR: demo/scripts/casbin_to_json.py not found."
+            find . -maxdepth 3 -type f -print
+            exit 2
+          fi
+
+          if [ ! -f scripts/policy.csv ]; then
+            echo "ERROR: demo/scripts/policy.csv not found."
+            find . -maxdepth 3 -type f -print
+            exit 2
+          fi
+
+          # ensure output dir exists
+          mkdir -p build
+
+          # run the converter (policy path is relative to demo)
           python scripts/casbin_to_json.py \
-            --policy-file casbin/policy.csv \
+            --policy-file scripts/policy.csv \
             --out build/casbin_policy.json
 
-      # 2) Evaluate with OPA; fail if any deny messages returned
+          echo "Created: demo/build/casbin_policy.json"
+          ls -la build || true
+
       - name: OPA evaluate
+        working-directory: demo
         run: |
-          opa eval \
-            --format=pretty \
-            --data opa/policy.rego \
-            --input build/casbin_policy.json \
-            "data.casbin.deny"
+          echo "Using OPA version: $(opa version || true)"
+          echo "Evaluating demo/build/casbin_policy.json with demo/opa/policy.rego"
 
-          # Fail the job if deny is non-empty
-          test "$(opa eval --format=raw --data opa/policy.rego --input build/casbin_policy.json 'count(data.casbin.deny)')" -eq 0
+          # Print pretty output (useful logs). Don't fail immediately so we can parse count below.
+          opa eval --format=pretty --data opa/policy.rego --input build/casbin_policy.json "data.casbin.deny" || true
 
+          # Robust counting logic
+          count=$(opa eval --format=raw --data opa/policy.rego --input build/casbin_policy.json 'count(data.casbin.deny)' 2>/dev/null || echo "ERR")
+          if [ "$count" = "ERR" ]; then
+            echo "ERROR: opa eval failed when counting denies. See logs above."
+            exit 1
+          fi
+
+          echo "deny count: $count"
+          if [ "$count" -ne 0 ]; then
+            echo "Policy validation failed — deny messages:"
+            opa eval --format=pretty --data opa/policy.rego --input build/casbin_policy.json "data.casbin.deny"
+            exit 1
+          fi
+
+          echo "No denies found. OPA check passed."
