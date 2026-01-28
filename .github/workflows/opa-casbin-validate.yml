@@ -81,3 +81,9 @@ jobs:
           fi
 
           echo "No denies found. OPA check passed."
+
+      - name: Upload Casbin JSON artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: casbin-policy-json
+          path: demo/build/casbin_policy.json
