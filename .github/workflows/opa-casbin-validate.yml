@@ -64,10 +64,10 @@ jobs:
           echo "Evaluating demo/build/casbin_policy.json with demo/policy.rego"
 
           # Print pretty output (useful logs). Don't fail immediately so we can parse count below.
-          opa eval --format=pretty --data demo/policy.rego --input build/casbin_policy.json "data.casbin.deny" || true
+          opa eval --format=pretty --data scripts/policy.rego --input build/casbin_policy.json "data.casbin.deny" || true
 
           # Robust counting logic
-          count=$(opa eval --format=raw --data demo/policy.rego --input build/casbin_policy.json 'count(data.casbin.deny)' 2>/dev/null || echo "ERR")
+          count=$(opa eval --format=raw --data scripts/policy.rego --input build/casbin_policy.json 'count(data.casbin.deny)' 2>/dev/null || echo "ERR")
           if [ "$count" = "ERR" ]; then
             echo "ERROR: opa eval failed when counting denies. See logs above."
             exit 1
@@ -76,7 +76,7 @@ jobs:
           echo "deny count: $count"
           if [ "$count" -ne 0 ]; then
             echo "Policy validation failed — deny messages:"
-            opa eval --format=pretty --data demo/policy.rego --input build/casbin_policy.json "data.casbin.deny"
+            opa eval --format=pretty --data scripts/policy.rego --input build/casbin_policy.json "data.casbin.deny"
             exit 1
           fi
 
