@@ -26,7 +26,7 @@ jobs:
       # Optional debug step to confirm files & layout (remove after you confirm it works)
       - name: Debug repo structure
         run: |
-          echo "Workspace: $GITHUB_WORKSPACE"
+          echo "Workspace: demo"
           pwd
           ls -la
           echo "Looking for scripts and casbin files..."
@@ -35,7 +35,7 @@ jobs:
 
       # 1) Convert Casbin -> JSON (input for OPA)
       - name: Convert Casbin policy to JSON
-        working-directory: ${{ github.workspace }}
+        working-directory: demo
         run: |
           # ensure output dir exists (casbin_to_json.py also creates dirs, but this is safe)
           mkdir -p build
@@ -45,6 +45,7 @@ jobs:
 
       # 2) Evaluate with OPA; fail if any deny messages returned
       - name: OPA evaluate
+        working-directory: demo
         run: |
           echo "Evaluating OPA policy against build/casbin_policy.json..."
           echo "OPA version: $(opa version || true)"
