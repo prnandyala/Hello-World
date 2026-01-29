@@ -1,7 +1,8 @@
 p, alice, data1, read
 p, bob, data1, write
-p, prasad, data2, read
+p, *, data2, read
 g, alice, admin
+
 
 
 
